@@ -48,40 +48,25 @@ for (ix_exp in 1:nrow(df_expiration)){
     df_option_all <- option_all(dt_analysis)
     
     
-    # getting a comprehensive list of underlyings
-    # df_etf <- read_csv("data_input/etf_list.csv")
-    
-    # df_etf$segment <- 
-    #     df_etf$segment %>% str_to_lower()
-    # 
-    # df_etf <-
-    #     df_etf %>% dplyr::filter(!str_detect(segment, "volatility"))
-    
-    
+
     # getting all the options for the next expiration
-    # and filtering underlyings by certain criteria
-    # 1) ETFs only (I could probably pretty easily relax this and then
-    #    start introducing non-earning volatility single names.)
-    # 2) Low price (this seems to reduce the universe from 50 to 30)
+    # 1) Filtering for OTM based on underlying_price
     df_low_price_und <- 
         df_option_all %>% 
-        # inner_join(
-        #     df_etf %>% select(symbol)
-        #     , by = c("underlying_symbol" = "symbol")
-        # ) %>%
-        dplyr::filter(expiration == dt_expiration) %>% 
-        #dplyr::filter(underlying_price <= 75) %>% 
-        dplyr::filter(
-            (type == "put" & strike <= underlying_price) |
+            dplyr::filter(expiration == dt_expiration) %>% 
+            dplyr::filter(
+                (type == "put" & strike <= underlying_price) |
                 (type == "call" & strike > underlying_price)
-        ) %>% 
-        dplyr::filter(bid > 0)
+            ) %>% 
+            dplyr::filter(bid > 0)
     
     
+    #####################################################################
+    ## NEED TO ADD: filter that there is at least one call and one put ##
+    #####################################################################
     # continuing to filter 
-    # 3) low spread - max spread
-    # 4) minimum daily volume 
-    # 5) number of options
+    # 2) low spread < 0.10
+    # 3) number of options
     df_universe <-
         df_low_price_und %>% 
         group_by(underlying_symbol) %>% 

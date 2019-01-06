@@ -25,6 +25,9 @@ bizdays.options$set(default.calendar="Rmetrics/NYSE")
 df_chain_desc <- 
     read_csv("/Users/Pritam/files/data/option_backtest/v2_universe_history.csv")
 
+df_chain_desc <-
+    df_chain_desc %>% 
+        filter(expiration > ymd(20170501))
 
 ## fixing the execution date issue
 df_expiration <- backtest_expiration()
@@ -78,6 +81,8 @@ for (ix_chn in (1:nrow(df_chain_desc))){
     # if there was no error then update all the histories
     if (!lst_otm_exec_hist$error){
         # updating chain description
+        df_chain_desc[ix_chn] <-
+            lst_otm_exec_hist$chain_description$d2x[1]
         df_chain_desc$exec_day_volume[ix_chn] <-
             lst_otm_exec_hist$chain_description$exec_day_volume[1]
         df_chain_desc$exec_day_num_opt[ix_chn] <-
@@ -111,24 +116,24 @@ toc() # big timer
 #-------------------#
 # writing csv files #
 #-------------------#
+# tic()
+#  write_csv(df_chain_desc, "v2_chain_desc_5yr.csv")
+#   write_csv(df_chain_hist, "v2_chain_hist_5yr.csv")
+#  write_csv(df_opt_hist, "v2_opt_hist_5yr.csv")
+# toc()
+# 
 tic()
- write_csv(df_chain_desc, "v2_chain_desc_5yr.csv")
-  write_csv(df_chain_hist, "v2_chain_hist_5yr.csv")
- write_csv(df_opt_hist, "v2_opt_hist_5yr.csv")
-toc()
+df_chain_desc %>%
+    filter(expiration < "2018-12-21") %>%
+    write_csv("v2_chain_desc_5yr_201705_201811.csv")
 
-tic()
-df_chain_desc %>% 
-    filter(expiration < "2017-05-19") %>% 
-    write_csv("v2_chain_desc_5yr_201401_201704.csv")
+df_chain_hist %>%
+    filter(expiration < "2018-12-21") %>%
+    write_csv("v2_chain_hist_5yr_201705_201811.csv")
 
-df_chain_hist %>%  
-    filter(expiration < "2017-05-19") %>% 
-    write_csv("v2_chain_hist_5yr_201401_201704.csv")
-
-df_opt_hist %>% 
-    filter(expiration < "2017-05-19") %>% 
-    write_csv("v2_opt_hist_5yr_201401_201704.csv")
+df_opt_hist %>%
+    filter(expiration < "2018-12-21") %>%
+    write_csv("v2_opt_hist_5yr_201705_201811.csv")
 toc()
 
 #################
