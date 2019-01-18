@@ -379,11 +379,12 @@ df_pnl_hist %>%
         
 
 
-# Annualized Returns
+# realized returns annualized
 1.068575 ^ (365/280)
 1.068575 ^ (252/195)
 
-
+# passive returns annualized
+1.050224 ^ (365/280)
 
 #########################################
 ## analyzing PNLs on a per-trade basis ##

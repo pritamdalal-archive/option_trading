@@ -1,0 +1,292 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+ 
+#### Loading Libraries
+```{r, include=FALSE}
+library(tidyverse)
+library(lubridate)
+library(listviewer)
+library(tictoc)
+```
+
+
+
+#### Reading In Data
+```{r}
+#########################
+## monthly expirations ##
+#########################
+df_expiration_all <-
+    read_csv(
+        "/Users/Pritam/files/data/option_backtest/v2_5yr_monthly_expiration.csv"
+        , col_types = cols()
+    )
+# removing the 201812 expiration, because I don't have that data in there
+df_expiration <-
+    df_expiration_all %>% 
+        filter(expiration < ymd(20181221))
+
+
+#######################
+## chain description ##
+#######################
+df_chain_desc_all <- 
+    read_csv(
+        "/Users/Pritam/files/data/option_backtest/v2_5yr_chain_desc_201401_201811.csv"
+        , col_types = cols()
+    )
+# keeping only the ones that don't have an error
+df_chain_desc <- 
+    df_chain_desc_all %>% 
+    filter( # removed because there are no calls
+        !(underlying_symbol == "CMCSK" & expiration == "2014-07-19")
+    ) %>%
+    filter( # removed because there are no calls
+        !(underlying_symbol == "DBD" & expiration == "2016-02-19")
+    ) %>%
+    filter(error == FALSE)
+
+
+######################
+## position scaling ##
+######################
+df_scaling <-
+    read_csv(
+        "/Users/Pritam/files/data/option_backtest/v2_5yr_position_scaling.csv"
+        , col_types = cols()
+    )
+
+
+
+
+#################
+## scaled pnls ##
+#################
+df_put_pnl <- 
+    read_csv(
+        "/Users/Pritam/files/data/option_backtest/v2_5yr_pnl_put_scaled.csv"
+        , col_types = cols()
+    )
+
+df_call_pnl <- 
+    read_csv(
+        "/Users/Pritam/files/data/option_backtest/v2_5yr_pnl_call_scaled.csv"
+        , col_types = cols()
+    )
+
+```
+
+
+
+#### Understanding the Expirations and Chains
+```{r}
+
+df_expiration$num_univ_und %>% summary()
+
+df_chain_desc %>% 
+    group_by(expiration) %>% 
+    summarize(
+        num_chain = n()
+    ) %>% 
+    .$num_chain %>% 
+    summary()
+```
+
+
+
+#### Random Sampling of Dataframe
+```{r}
+lst_naked_put <- list()
+lst_dh_put <- list()
+lst_naked_call <- list()
+lst_dh_call <-list()
+
+tic()
+ix_chn <- 1
+for (ix_rnd in 1:500){
+    for (ix_exp in (1:nrow(df_expiration))){
+    
+        dt_expiration <- df_expiration$expiration[ix_exp]
+        
+        df_traded_underlying <- 
+            df_chain_desc %>% 
+                filter(expiration == dt_expiration) %>% 
+                sample_n(40)
+        
+        # first ten go to naked put portfolio
+        lst_naked_put[[ix_chn]] <- 
+            df_traded_underlying[1:10, ] %>% 
+            mutate(random_experiment = ix_rnd)
+        
+        # second ten go to delta-hedge put portfolio
+        lst_dh_put[[ix_chn]] <- 
+            df_traded_underlying[11:20, ]  %>% 
+            mutate(random_experiment = ix_rnd)
+        
+        # third ten go into naked call portfolio
+        lst_naked_call[[ix_chn]] <- 
+            df_traded_underlying[21:30, ] %>% 
+            mutate(random_experiment = ix_rnd)
+        
+        # fourth ten go into delta-hedge call portfolio
+        lst_dh_call[[ix_chn]] <- 
+            df_traded_underlying[31:40, ] %>% 
+            mutate(random_experiment = ix_rnd)
+        
+        ix_chn <- ix_chn + 1
+    }  
+}
+toc()
+
+tic()
+df_chain_naked_put <- bind_rows(lst_naked_put)
+df_chain_dh_put <- bind_rows(lst_dh_put)
+df_chain_naked_call <- bind_rows(lst_naked_call)
+df_chain_dh_call <- bind_rows(lst_dh_call)
+toc()
+```
+
+
+
+#### Collecting PNLs together
+```{r}
+# naked puts
+df_pnl_naked_put <- 
+    df_chain_naked_put %>% 
+        left_join(
+            df_put_pnl
+            , by = c("underlying_symbol", "expiration")
+        )
+
+# delta-hedge puts
+df_pnl_dh_put <- 
+    df_chain_dh_put %>% 
+        left_join(
+            df_put_pnl
+            , by = c("underlying_symbol", "expiration")
+        )
+
+# naked calls
+df_pnl_naked_call <-
+    df_chain_naked_call %>% 
+        left_join(
+            df_call_pnl
+            , by = c("underlying_symbol", "expiration")
+        )
+
+# delta-hedged calls
+df_pnl_dh_call <- 
+    df_chain_dh_call %>% 
+        left_join(
+            df_call_pnl
+            , by = c("underlying_symbol", "expiration")
+        )
+
+
+```
+
+
+#### Calculating Sharpe-Ratios
+```{r}
+# naked puts
+df_strategy_pnl_naked_put <- 
+    df_pnl_naked_put %>% 
+        group_by(data_date) %>% 
+        summarize(
+            dly_pnl = sum(dly_opt_pnl * put_mult)
+        ) 
+
+df_strategy_pnl_naked_put$dly_pnl %>% sum()
+
+
+# delta hedged puts
+df_strategy_pnl_dh_put <- 
+    df_pnl_dh_put %>% 
+        group_by(data_date) %>% 
+        summarize(
+            dly_pnl = sum(dly_tot_pnl * put_mult)
+        )
+
+df_strategy_pnl_dh_put$dly_pnl %>% sum()
+
+
+# naked calls
+df_strategy_pnl_naked_call <- 
+    df_pnl_naked_call %>% 
+        group_by(data_date) %>% 
+        summarize(
+            dly_pnl = sum(dly_opt_pnl * call_mult)
+        )
+
+df_strategy_pnl_naked_call$dly_pnl %>% sum()
+
+
+# dh calls
+df_strategy_pnl_dh_call <- 
+    df_pnl_dh_call %>% 
+        group_by(data_date) %>% 
+        summarize(
+            dly_pnl = sum(dly_opt_pnl * call_mult )
+        )
+
+df_strategy_pnl_dh_call$dly_pnl %>% sum()
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
