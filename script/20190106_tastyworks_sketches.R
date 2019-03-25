@@ -105,7 +105,7 @@ df_trade_clean$expiration_date <-
 # that I initially had in mind for querying the delta_neutral database
 # directly wasn't going to work, due to slow database performance.
 # I then decided to basically grab MORE information than I really needed
-# using the existing functions that I have, which have acceptable performace.
+# using the existing functions that I have, which gave acceptable performace.
 
 
 # these are all the chain that I traded, along with the first
@@ -118,51 +118,60 @@ df_chain <-
         )
 
 
-# looping through all the chain and grabbing all the EOD prices for 
-# each trading day starting from the first_trade_date until expiration.
-df_opt_hist <- tibble()
-#lst_opt_hist <- list() # figure out how to implement this
-for (ix_chn in 1:nrow(df_chain)){
-    tic()
-    chr_underlying <- df_chain$underlying_symbol[ix_chn]
-    dt_expiration <- df_chain$expiration_date[ix_chn]
-    dt_first_trade <- df_chain$first_trade_date[ix_chn]
-    
-    
-    dt_trade <- bizseq(dt_first_trade, dt_expiration)
-    
-    for (ix_td in 1:length(dt_trade)){
-    
-    ## updating df_opt_hist
-    df_opt_hist <- # this is the slow way
-        df_opt_hist %>%
-        bind_rows(
-            backtestr::option_chain(
-                trade_date = dt_trade[ix_td]
-                , underlying = chr_underlying
-                , dt_expiration
-            )
-        )
+##############################################################
+# the data that is generated in with this loop is stored    ##
+# in tastyworks_opt_hist_2018.csv, it may need to be re-run ##
+# from time to time.                                        ##
+##############################################################
+# # looping through all the chain and grabbing all the EOD prices for 
+# # each trading day starting from the first_trade_date until expiration.
+# df_opt_hist <- tibble()
+# lst_opt_hist <- list() # figure out how to implement this
+# ix_opt_hist <- 1
+# for (ix_chn in 1:nrow(df_chain)){
+#     tic()
+#     chr_underlying <- df_chain$underlying_symbol[ix_chn]
+#     dt_expiration <- df_chain$expiration_date[ix_chn]
+#     dt_first_trade <- df_chain$first_trade_date[ix_chn]
+#     
+#     
+#     dt_trade <- bizseq(dt_first_trade, dt_expiration)
+#     
+#     for (ix_td in 1:length(dt_trade)){
+#     
+#     ## updating df_opt_hist
+#     # df_opt_hist <- # this is the slow way
+#     #     df_opt_hist %>%
+#     #     bind_rows(
+#     #         backtestr::option_chain(
+#     #             trade_date = dt_trade[ix_td]
+#     #             , underlying = chr_underlying
+#     #             , dt_expiration
+#     #         )
+#     #     )
+# 
+#     # this is the faster way, but I need to figure out
+#     # how to implement it
+#     lst_opt_hist[[ix_opt_hist]] <-
+#         backtestr::option_chain(
+#             trade_date = dt_first_trade
+#             , underlying = chr_underlying
+#             , dt_expiration
+#         )
+#     ix_opt_hist <- ix_opt_hist + 1
+#     
+#     }
+#     print(ix_chn)
+#     toc()
+# }
 
-    ## this is the faster way, but I need to figure out 
-    ## how to implement it 
-    # lst_opt_hist[[ix_chn]] <- 
-    #     backtestr::option_chain(
-    #         trade_date = dt_first_trade
-    #         , underlying = chr_underlying
-    #         , dt_expiration
-    #     )
-    
-    }
-    print(ix_chn)
-    toc()
-}
-
-
+#df_opt_hist <- bind_rows(lst_opt_hist)
 ## writing the df_opt_hist to a CSV
 # write_csv(df_opt_hist, "tastyworks_2018_opt_hist.csv")
 
-
+df_opt_hist <- read_csv(
+    "/Users/Pritam/files/data/tastyworks/tastyworks_opt_hist_2018.csv"
+)
 
 
 ##########################################
@@ -186,6 +195,7 @@ df_pnl_hist <- tibble()
 ## trade in df_trade and then stores them in df_pnl_hist
 for(ix_trade in 1:nrow(df_trade)){
     
+    #ix_trade <- 21L
     tic()
     
     # grabbing information about current trade from df_trade_clean
@@ -292,6 +302,19 @@ for(ix_trade in 1:nrow(df_trade)){
 df_pnl_hist$daily_pnl %>% sum()
 
 
+## calls vs put
+df_pnl_hist %>% 
+    filter(expiration != "2018-06-15") %>% 
+    filter(expiration != "2018-10-19") %>% 
+    group_by(type) %>% 
+    summarize(
+        pnl = sum(daily_pnl)
+    )
+
+
+    
+
+
 
 #######################
 ## PNL by Expiration ##
@@ -302,8 +325,22 @@ df_max_profit <-
         filter(action == "SELL_TO_OPEN") %>% 
         group_by(expiration_date) %>% 
         summarize(
-            max = sum(value + commissions + fees)
+            prem_sold = sum(value)
+            , commissions = sum(commissions)
+            , fees = sum(fees)
+            , max = prem_sold + commissions + fees
         )
+df_max_profit$max %>% sum()
+df_max_profit$prem_sold %>% sum()
+
+# total trading days
+int_tot_trading_days = bizdays(ymd(20180316), ymd(20181221))
+
+# premium sold per trading day
+df_max_profit$prem_sold %>% sum() %>% `/` (int_tot_trading_days)
+df_max_profit$commissions %>% sum() + 
+    df_max_profit$fees%>% sum() 
+
 
 # passive pnl by expiration
 df_passive_pnl <- 
@@ -320,6 +357,9 @@ df_realized_pnl <-
         group_by(expiration) %>% 
         summarize(
             realized = sum(daily_pnl)
+        ) %>% 
+        mutate(
+            ttd = cumsum(realized)
         )
 
 ## this data frame puts it all together in a nice easy to read way
@@ -473,7 +513,7 @@ df_trade_clean$trade_pnl %>% sum() # based on this calculation
 df_pnl_hist$daily_pnl %>% sum() # based on original calculation
 
 
-# this query show all the trade that don't match between the tow 
+# this query show all the trade that don't match between the two 
 # methodogies; this should be empty now that I fixed everything.
 df_trade_clean %>% 
     left_join(

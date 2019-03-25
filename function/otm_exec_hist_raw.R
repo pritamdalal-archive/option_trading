@@ -154,6 +154,8 @@ otm_exec_hist_raw <- function(underlying
         if(dt_trade == dt_last_trade){
             dbl_swap_rate <- c(0, 0, 0)
         } else {
+            # BUG: this is the wrong set of options to be using to 
+            #      calculate this.  Need to fix!!
             dbl_swap_rate <- swap_rate(df_otm, int_d2x)
         }
         

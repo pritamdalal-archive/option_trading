@@ -18,13 +18,14 @@ load_rmetrics_calendars(2000:2020)
 bizdays.options$set(default.calendar="Rmetrics/NYSE")
 
 # setting dates and parameters
-dt_analysis <- as.Date("2019-02-15") # this was an error for march expirations
-dt_expiration <- backtestr::monthly_expiration(2019, 03)
+dt_analysis <- today()
+dt_expiration <- backtestr::monthly_expiration(2019, 02)
 dbl_strangle_delta <- 0.075
 int_garch_fit_days <- 2521
 
 # getting all the options for a the day before execution
-chr_path <- "/Users/Pritam/Desktop/L3_20190214/L3_options_20190214.csv"
+
+chr_path <- "/Users/Pritam/Desktop/L3_20190117/L3_options_20190117.csv"
 df_option_all <-
     backtestr::csv_option_all(chr_path)
 
@@ -65,6 +66,7 @@ df_universe <-
 
 # looping through and calculating some stuff for each underlying in
 # df_universe
+
 int_d2x <- bizdays(dt_analysis, dt_expiration)
 df_universe$implied_forward <- NA_real_
 df_universe$bid_swap_rate <- NA_real_
@@ -201,7 +203,7 @@ df_trade_sheet <-
         filter(!is.na(garch_forecast)) %>%
         filter(put_bid + call_bid > 0.15)
 
-#write_csv(df_trade_sheet, "trade_sheet_20190214_v2.csv")
+#write_csv(df_trade_sheet, "trade_sheet_20190118_v2.csv")
 print("DONE!")
 toc()
 
